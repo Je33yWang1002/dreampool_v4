@@ -1,39 +1,11 @@
 import fetch from 'node-fetch';
-import crypto from 'crypto';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-// ✅ 同時支援新舊兩種格式
-let KLING_ACCESS_KEY = process.env.KLING_ACCESS_KEY;
-let KLING_SECRET_KEY = process.env.KLING_SECRET_KEY;
-
-if ((!KLING_ACCESS_KEY || !KLING_SECRET_KEY) && process.env.KLING_API_KEY) {
-  const raw = process.env.KLING_API_KEY.trim();
-  if (raw.includes('.')) {
-    const parts = raw.split('.');
-    KLING_ACCESS_KEY = parts[0].trim();
-    KLING_SECRET_KEY = parts[1].trim();
-  }
-}
+const BYTEPLUS_API_KEY = (process.env.BYTEPLUS_API_KEY || '').trim();
 
 export const config = { api: { bodyParser: false } };
 
-// ✅ 產生 Kling JWT
-function generateKlingJWT() {
-  if (!KLING_ACCESS_KEY || !KLING_SECRET_KEY) {
-    throw new Error('Kling API Key 未設定');
-  }
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
-  const now = Math.floor(Date.now() / 1000);
-  const payload = { iss: KLING_ACCESS_KEY, exp: now + 1800, nbf: now - 5 };
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const sig = crypto.createHmac('sha256', KLING_SECRET_KEY)
-    .update(`${encodedHeader}.${encodedPayload}`).digest('base64url');
-  return `Bearer ${encodedHeader}.${encodedPayload}.${sig}`;
-}
-
-// ✅ 解析 multipart body
+// 解析 multipart body
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -77,7 +49,7 @@ async function parseBody(req) {
   });
 }
 
-const DREAM_SYSTEM_PROMPT = `You are a world-class cinematic AI director. Convert the user's dream description into a structured English video prompt for Kling AI.
+const DREAM_SYSTEM_PROMPT = `You are a world-class cinematic AI director. Convert the user's dream description into a structured English video prompt for Seedance AI.
 
 RULES:
 1. Shot Type: Wide shot / Medium shot / Close-up / POV / Aerial
@@ -108,7 +80,8 @@ export default async function handler(req, res) {
       const userPhotoUrl = fields?.userPhotoUrl || '';
       if (!dreamText) return res.status(400).json({ success: false, error: '請輸入夢境內容' });
 
-      let prompt = `Wide shot: A surreal dreamscape where Character_A experiences: "${dreamText}". 35mm cinematic, slow dolly, ethereal lighting. [Negative: blurry, distorted limbs, text overlays, low quality]`;
+      // GPT 生成 prompt
+      let prompt = `Wide shot: A surreal dreamscape where Character_A experiences: "${dreamText}". 35mm cinematic, slow dolly, ethereal lighting.`;
       let tags = ["夢境", "潛意識", "超現實"];
 
       if (OPENAI_API_KEY) {
@@ -132,41 +105,55 @@ export default async function handler(req, res) {
         } catch(e) { console.error("GPT 失敗:", e.message); }
       }
 
-      // ✅ 呼叫 Kling API
-      const klingAuth = generateKlingJWT();
-      const klingBody = {
-        model_name: "kling-v1-6",
-        prompt,
-        negative_prompt: "blurry, distorted limbs, text overlays, low quality, flickering, watermark",
-        aspect_ratio: "9:16",
-        duration: "5",
-        mode: "std"
-      };
+      if (!BYTEPLUS_API_KEY) {
+        return res.status(500).json({ success: false, error: 'BYTEPLUS_API_KEY 未設定' });
+      }
 
-      // 如果有照片，加入 image_reference
+      // ✅ 呼叫 BytePlus ModelArk Seedance API
+      // 有照片 → image-to-video，無照片 → text-to-video
+      let seedanceBody;
       if (userPhotoUrl) {
-        klingBody.image_reference = userPhotoUrl;
-        klingBody.image_reference_strength = 0.8;
+        console.log("使用 Seedance image-to-video，照片:", userPhotoUrl);
+        seedanceBody = {
+          model: "Dreamina-Seedance-2.0-fast",
+          content: [
+            { type: "image_url", image_url: { url: userPhotoUrl } },
+            { type: "text", text: prompt + " --ar 9:16 --dur 5" }
+          ]
+        };
+      } else {
+        console.log("使用 Seedance text-to-video");
+        seedanceBody = {
+          model: "Dreamina-Seedance-2.0-fast",
+          content: [
+            { type: "text", text: prompt + " --ar 9:16 --dur 5" }
+          ]
+        };
       }
 
-      console.log("呼叫 Kling API:", JSON.stringify(klingBody));
-      const klingRes = await fetch('https://api.klingai.com/v1/videos/text2video', {
+      console.log("呼叫 Seedance:", JSON.stringify(seedanceBody));
+
+      const seedRes = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': klingAuth },
-        body: JSON.stringify(klingBody)
+        headers: {
+          'Authorization': `Bearer ${BYTEPLUS_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(seedanceBody)
       });
-      const klingData = await klingRes.json();
-      console.log("Kling 回應:", JSON.stringify(klingData));
 
-      if (klingData.code !== 0) {
-        let msg = klingData.message || "Kling API 錯誤";
-        if (klingData.code === 1102) msg = "Kling 帳戶餘額不足！";
-        if (klingData.code === 1000) msg = "Kling 金鑰認證失敗";
-        return res.status(500).json({ success: false, error: `Kling [${klingData.code}]: ${msg}` });
+      const seedData = await seedRes.json();
+      console.log("Seedance 回應:", JSON.stringify(seedData));
+
+      if (seedData.error) {
+        return res.status(500).json({ success: false, error: `Seedance 錯誤: ${seedData.error.message || JSON.stringify(seedData.error)}` });
       }
 
-      const taskId = klingData.data?.task_id;
-      if (!taskId) return res.status(500).json({ success: false, error: "未取得 task_id" });
+      const taskId = seedData.id;
+      if (!taskId) {
+        return res.status(500).json({ success: false, error: `未取得 task_id: ${JSON.stringify(seedData)}` });
+      }
+
       return res.status(200).json({ success: true, videoPrompt: prompt, tags, taskId });
     }
 
@@ -174,18 +161,35 @@ export default async function handler(req, res) {
     if (mode === 'check_status') {
       const taskId = fields?.taskId;
       if (!taskId) return res.status(400).json({ success: false, error: '缺少 taskId' });
-      const klingAuth = generateKlingJWT();
-      const checkRes = await fetch(`https://api.klingai.com/v1/videos/text2video/${taskId}`, {
+
+      const checkRes = await fetch(`https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks/${taskId}`, {
         method: 'GET',
-        headers: { 'Authorization': klingAuth }
+        headers: { 'Authorization': `Bearer ${BYTEPLUS_API_KEY}` }
       });
+
       const checkData = await checkRes.json();
-      const status = checkData.data?.task_status;
-      let videoUrl = "";
-      if (checkData.data?.task_result?.videos?.length > 0) {
-        videoUrl = checkData.data.task_result.videos[0].url || "";
+      console.log("Seedance 查詢:", JSON.stringify(checkData));
+
+      // Seedance 狀態: queued / running / succeeded / failed
+      const status = checkData.status || '';
+      let videoUrl = '';
+
+      if (status === 'succeeded') {
+        const contents = checkData.content || checkData.choices?.[0]?.message?.content || [];
+        for (const item of contents) {
+          if (item.type === 'video_url' && item.video_url?.url) {
+            videoUrl = item.video_url.url;
+            break;
+          }
+        }
       }
-      return res.status(200).json({ success: true, status, videoUrl });
+
+      // 前端用的狀態對應
+      let frontendStatus = status;
+      if (status === 'succeeded') frontendStatus = 'completed';
+      if (status === 'running' || status === 'queued') frontendStatus = 'processing';
+
+      return res.status(200).json({ success: true, status: frontendStatus, videoUrl });
     }
 
     return res.status(400).json({ success: false, error: '未知的 mode' });
