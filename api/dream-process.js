@@ -115,7 +115,7 @@ async function parseBody(req) {
 // ✅ System Prompt
 const DREAM_SYSTEM_PROMPT = `You are a world-class cinematic AI director. Convert the user's dream description into a structured English video prompt for Kling AI.
 
-RULES:
+RULES FOR PROMPT:
 1. Shot Type: Wide shot / Medium shot / Close-up / POV / Aerial
 2. Camera: dolly push-in, lateral tracking, crane up, slow zoom
 3. Lighting: golden hour, moonlit, neon-lit, bioluminescent
@@ -124,8 +124,15 @@ RULES:
 6. Style: 35mm cinematic, surrealist dreamscape
 7. End with: [Negative: blurry, distorted limbs, text overlays, low quality, flickering]
 
+RULES FOR TAGS (very important):
+- Extract 3-5 keywords DIRECTLY from the user's original text
+- Use the EXACT words/phrases the user actually said — do NOT invent new words
+- Tags must be short noun or verb phrases (1-4 characters each)
+- Tags should be in the same language the user wrote in (Chinese if they wrote Chinese)
+- Example: if user says "我夢見一隻貓追著狗跑", tags should be ["貓", "狗", "追跑"] NOT ["動物", "活力", "奔跑"]
+
 OUTPUT (JSON only):
-{"prompt": "Full English video prompt", "tags": ["中文標籤1", "中文標籤2", "中文標籤3", "中文標籤4"]}`;
+{"prompt": "Full English video prompt", "tags": ["原文關鍵詞1", "原文關鍵詞2", "原文關鍵詞3"]}`;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -209,7 +216,7 @@ export default async function handler(req, res) {
         model_name: "kling-v2-1-master",
         prompt: prompt,
         negative_prompt: "blurry, distorted limbs, text overlays, low quality, flickering, watermark",
-        aspect_ratio: "16:9",
+        aspect_ratio: "9:16",
         duration: "5",
         mode: "pro"
       };
