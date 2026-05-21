@@ -115,7 +115,7 @@ export default async function handler(req, res) {
       if (userPhotoUrl) {
         console.log("使用 Seedance image-to-video，照片:", userPhotoUrl);
         seedanceBody = {
-          model: "ByteDance-Seedance-1.0-pro",
+          model: "seedance-1-5-pro-251215",
           content: [
             { type: "image_url", image_url: { url: userPhotoUrl } },
             { type: "text", text: prompt + " --ar 9:16 --dur 5" }
@@ -124,7 +124,7 @@ export default async function handler(req, res) {
       } else {
         console.log("使用 Seedance text-to-video");
         seedanceBody = {
-          model: "ByteDance-Seedance-1.0-pro",
+          model: "seedance-1-5-pro-251215",
           content: [
             { type: "text", text: prompt + " --ar 9:16 --dur 5" }
           ]
