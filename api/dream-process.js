@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const BYTEPLUS_API_KEY = (process.env.BYTEPLUS_API_KEY || '').trim();
+const PIAPI_API_KEY = (process.env.PIAPI_API_KEY || '').trim();
 
 export const config = { api: { bodyParser: false } };
 
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
       const userPhotoUrl = fields?.userPhotoUrl || '';
       if (!dreamText) return res.status(400).json({ success: false, error: '請輸入夢境內容' });
 
-      let prompt = `Wide shot: A surreal dreamscape where Character_A experiences: "${dreamText}". 35mm cinematic, slow dolly, ethereal lighting.`;
+      let prompt = `Wide shot: A surreal dreamscape where Character_A experiences: "${dreamText}". 35mm cinematic, slow dolly, ethereal lighting. [Negative: blurry, distorted limbs, text overlays, low quality, flickering]`;
       let tags = ["夢境", "潛意識", "超現實"];
 
       if (OPENAI_API_KEY) {
@@ -102,49 +102,60 @@ export default async function handler(req, res) {
         } catch(e) { console.error("GPT 失敗:", e.message); }
       }
 
-      if (!BYTEPLUS_API_KEY) {
-        return res.status(500).json({ success: false, error: 'BYTEPLUS_API_KEY 未設定' });
+      if (!PIAPI_API_KEY) {
+        return res.status(500).json({ success: false, error: 'PIAPI_API_KEY 未設定' });
       }
 
-      let seedanceBody;
+      // ✅ 用 PiAPI Seedance 2，直接控制比例和解析度
+      let requestBody;
       if (userPhotoUrl) {
-        console.log("使用 Seedance image-to-video，照片:", userPhotoUrl);
-        seedanceBody = {
-          model: "seedance-1-5-pro-251215",
-          content: [
-            { type: "image_url", image_url: { url: userPhotoUrl } },
-            { type: "text", text: prompt + " --ar 9:16 --dur 5 --resolution 720p" }
-          ]
+        console.log("使用 PiAPI Seedance image-to-video，照片:", userPhotoUrl);
+        requestBody = {
+          model: "seedance",
+          task_type: "seedance-2-fast",
+          input: {
+            prompt: prompt,
+            mode: "omni_reference",
+            image_urls: [userPhotoUrl],
+            duration: 5,
+            aspect_ratio: "9:16",
+            resolution: "720p"
+          }
         };
       } else {
-        console.log("使用 Seedance text-to-video");
-        seedanceBody = {
-          model: "seedance-1-5-pro-251215",
-          content: [
-            { type: "text", text: prompt + " --ar 9:16 --dur 5 --resolution 720p" }
-          ]
+        console.log("使用 PiAPI Seedance text-to-video");
+        requestBody = {
+          model: "seedance",
+          task_type: "seedance-2-fast",
+          input: {
+            prompt: prompt,
+            mode: "text_to_video",
+            duration: 5,
+            aspect_ratio: "9:16",
+            resolution: "720p"
+          }
         };
       }
 
-      console.log("呼叫 Seedance:", JSON.stringify(seedanceBody));
+      console.log("呼叫 PiAPI Seedance:", JSON.stringify(requestBody));
 
-      const seedRes = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks', {
+      const seedRes = await fetch('https://api.piapi.ai/api/v1/task', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${BYTEPLUS_API_KEY}`,
+          'x-api-key': PIAPI_API_KEY,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(seedanceBody)
+        body: JSON.stringify(requestBody)
       });
 
       const seedData = await seedRes.json();
-      console.log("Seedance 回應:", JSON.stringify(seedData));
+      console.log("PiAPI Seedance 回應:", JSON.stringify(seedData));
 
-      if (seedData.error) {
-        return res.status(500).json({ success: false, error: `Seedance 錯誤: ${seedData.error.message || JSON.stringify(seedData.error)}` });
+      if (seedData.code !== 200) {
+        return res.status(500).json({ success: false, error: `Seedance 錯誤: ${seedData.message || JSON.stringify(seedData)}` });
       }
 
-      const taskId = seedData.id;
+      const taskId = seedData.data?.task_id;
       if (!taskId) {
         return res.status(500).json({ success: false, error: `未取得 task_id: ${JSON.stringify(seedData)}` });
       }
@@ -156,44 +167,26 @@ export default async function handler(req, res) {
       const taskId = fields?.taskId;
       if (!taskId) return res.status(400).json({ success: false, error: '缺少 taskId' });
 
-      const checkRes = await fetch(`https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks/${taskId}`, {
+      const checkRes = await fetch(`https://api.piapi.ai/api/v1/task/${taskId}`, {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${BYTEPLUS_API_KEY}` }
+        headers: { 'x-api-key': PIAPI_API_KEY }
       });
 
       const checkData = await checkRes.json();
-      console.log("Seedance 查詢:", JSON.stringify(checkData));
+      console.log("PiAPI Seedance 查詢:", JSON.stringify(checkData));
 
-      const status = checkData.status || '';
+      const status = checkData.data?.status || '';
       let videoUrl = '';
 
-      if (status === 'succeeded') {
-        try {
-          const content = checkData.content;
-          // 格式一：content 是物件 {"video_url": "https://..."}
-          if (content && typeof content === 'object' && !Array.isArray(content)) {
-            if (content.video_url) {
-              videoUrl = content.video_url;
-            }
-          }
-          // 格式二：content 是陣列 [{"type":"video_url","video_url":{"url":"..."}}]
-          if (!videoUrl && Array.isArray(content)) {
-            for (const item of content) {
-              if (item.type === 'video_url' && item.video_url?.url) {
-                videoUrl = item.video_url.url;
-                break;
-              }
-            }
-          }
-          console.log("解析到影片URL:", videoUrl);
-        } catch(e) {
-          console.error("解析影片URL失敗:", e.message);
-        }
+      if (status === 'completed') {
+        videoUrl = checkData.data?.output?.video_url || '';
+        console.log("解析到影片URL:", videoUrl);
       }
 
       let frontendStatus = status;
-      if (status === 'succeeded') frontendStatus = 'completed';
-      if (status === 'running' || status === 'queued') frontendStatus = 'processing';
+      if (status === 'completed') frontendStatus = 'completed';
+      if (status === 'processing' || status === 'pending' || status === 'running' || status === 'queued') frontendStatus = 'processing';
+      if (status === 'failed') frontendStatus = 'failed';
 
       return res.status(200).json({ success: true, status: frontendStatus, videoUrl });
     }
