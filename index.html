@@ -315,7 +315,7 @@
 
         <button class="btn-submit" id="submitBtn" onclick="startDreamProcess()">
             開始具現化夢境 🚀
-            <span class="quality-badge">✨ Vidu Q1</span>
+            <span class="quality-badge">✨ v1.6 Std</span>
         </button>
 
         <div class="status-bar" id="statusBar">
@@ -567,7 +567,7 @@ async function startDreamProcess() {
         resultCard.style.display = 'block';
 
         const taskId = result.taskId;
-        statusText.textContent = '🎬 Kling Vidu Q1 正在渲染高畫質影片（1-3 分鐘）...';
+        statusText.textContent = '🎬 Kling v1.6 Std 正在渲染高畫質影片（1-3 分鐘）...';
 
         // 輪詢影片狀態
         checkInterval = setInterval(async () => {
