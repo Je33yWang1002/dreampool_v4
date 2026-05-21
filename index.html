@@ -203,6 +203,46 @@
         /* ── 渲染中 ── */
         .generating-msg { text-align: center; padding: 20px; color: #4b5563; font-size: 14px; }
 
+
+        /* ── 照片上傳區 ── */
+        .photo-upload-area {
+            border: 2px dashed #374151;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 0;
+        }
+        .photo-upload-area:hover { border-color: #ff4757; background: rgba(255,71,87,0.03); }
+        .photo-upload-area.has-photo { border-color: #4ade80; border-style: solid; }
+
+        .photo-preview {
+            width: 80px; height: 80px; border-radius: 50%;
+            object-fit: cover; margin: 0 auto 10px;
+            border: 3px solid #4ade80;
+            display: none;
+        }
+        .photo-preview.show { display: block; }
+
+        .photo-upload-icon { font-size: 32px; margin-bottom: 8px; }
+        .photo-upload-text { font-size: 13px; color: #6b7280; }
+        .photo-upload-text strong { color: #d1d5db; display: block; margin-bottom: 4px; font-size: 14px; }
+        .photo-remove-btn {
+            background: none; border: none; color: #ff4757;
+            font-size: 12px; cursor: pointer; margin-top: 6px;
+            display: none;
+        }
+        .photo-remove-btn.show { display: inline-block; }
+        .photo-uploading { color: #fbbf24; font-size: 13px; display: none; }
+        .photo-uploading.show { display: block; }
+        .photo-optional-badge {
+            display: inline-block;
+            background: rgba(99,102,241,0.1);
+            color: #818cf8; border: 1px solid rgba(99,102,241,0.25);
+            padding: 2px 8px; border-radius: 10px;
+            font-size: 11px; font-weight: 600; margin-left: 6px;
+        }
         /* ── Toast ── */
         .share-toast {
             position: fixed; bottom: 24px; left: 50%;
@@ -243,7 +283,25 @@
 
     <!-- 輸入卡片 -->
     <div class="card">
-        <div class="input-label">🔮 描述你的夢境</div>
+        <div class="input-label">
+            📸 上傳你的照片
+            <span class="photo-optional-badge">選填</span>
+        </div>
+        <div class="photo-upload-area" id="photoUploadArea" onclick="document.getElementById('photoFileInput').click()">
+            <img class="photo-preview" id="photoPreview" src="" alt="預覽">
+            <div class="photo-upload-icon" id="photoUploadIcon">🤳</div>
+            <div class="photo-upload-text">
+                <strong id="photoUploadTitle">上傳你的照片，讓 AI 參考你的外貌</strong>
+                點擊上傳 · 支援 JPG / PNG
+            </div>
+            <div class="photo-uploading" id="photoUploading">⏳ 照片上傳中...</div>
+            <button class="photo-remove-btn" id="photoRemoveBtn" onclick="removePhoto(event)">✕ 移除照片</button>
+        </div>
+        <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handlePhotoUpload(event)">
+
+        <div style="margin-bottom: 16px;"></div>
+
+                <div class="input-label">🔮 描述你的夢境</div>
         <textarea id="dreamInput" placeholder="例如：我夢見自己在螢光色的深海森林裡飛翔，身旁有一隻巨大的藍色發光水母緩慢游過..."></textarea>
 
         <div class="voice-row">
@@ -313,6 +371,7 @@ let currentTags = [];
 let currentPrompt = '';
 let lineUserId = '';
 let lineDisplayName = '';
+let userPhotoUrl = ''; // 使用者上傳的照片 URL
 
 // ── 初始化：讀取 URL 參數（LINE 登入後跳轉回來帶的資料）和 localStorage ──
 function init() {
@@ -486,6 +545,7 @@ async function startDreamProcess() {
         const formData = new FormData();
         formData.append('dream', dreamText);
         formData.append('mode', 'generate');
+        if (userPhotoUrl) formData.append('userPhotoUrl', userPhotoUrl);
 
         const res = await fetch('/api/dream-process', { method: 'POST', body: formData });
         const result = await res.json();
@@ -638,6 +698,68 @@ function showToast(msg) {
     toast.textContent = msg;
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+
+// ── 照片上傳 ──
+async function handlePhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // 檔案大小限制 5MB
+    if (file.size > 5 * 1024 * 1024) {
+        showToast('❌ 照片大小請在 5MB 以內');
+        return;
+    }
+
+    // 先顯示本地預覽
+    const reader = new FileReader();
+    reader.onload = e => {
+        document.getElementById('photoPreview').src = e.target.result;
+        document.getElementById('photoPreview').classList.add('show');
+        document.getElementById('photoUploadIcon').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+
+    // 上傳到 Cloudinary
+    document.getElementById('photoUploading').classList.add('show');
+    document.getElementById('photoUploadTitle').textContent = '上傳中...';
+    document.getElementById('photoUploadArea').classList.add('has-photo');
+
+    try {
+        const formData = new FormData();
+        formData.append('photo', file, file.name);
+
+        const res = await fetch('/api/upload-photo', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.success) {
+            userPhotoUrl = data.imageUrl;
+            document.getElementById('photoUploadTitle').textContent = '✅ 照片上傳完成！AI 將參考你的外貌';
+            document.getElementById('photoRemoveBtn').classList.add('show');
+            showToast('✅ 照片上傳成功！');
+        } else {
+            showToast('❌ 照片上傳失敗：' + (data.error || '請重試'));
+            removePhoto();
+        }
+    } catch(e) {
+        showToast('❌ 上傳錯誤，請重試');
+        removePhoto();
+    } finally {
+        document.getElementById('photoUploading').classList.remove('show');
+    }
+}
+
+function removePhoto(event) {
+    if (event) event.stopPropagation();
+    userPhotoUrl = '';
+    document.getElementById('photoPreview').src = '';
+    document.getElementById('photoPreview').classList.remove('show');
+    document.getElementById('photoUploadIcon').style.display = 'block';
+    document.getElementById('photoUploadTitle').textContent = '上傳你的照片，讓 AI 參考你的外貌';
+    document.getElementById('photoUploadArea').classList.remove('has-photo');
+    document.getElementById('photoRemoveBtn').classList.remove('show');
+    document.getElementById('photoFileInput').value = '';
 }
 
 // 頁面載入時初始化
