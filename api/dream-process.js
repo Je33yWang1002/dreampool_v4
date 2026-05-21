@@ -5,7 +5,6 @@ const BYTEPLUS_API_KEY = (process.env.BYTEPLUS_API_KEY || '').trim();
 
 export const config = { api: { bodyParser: false } };
 
-// 解析 multipart body
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -74,13 +73,11 @@ export default async function handler(req, res) {
     const { fields } = await parseBody(req);
     const mode = fields?.mode;
 
-    // ── 生成影片 ──
     if (!mode || mode === 'generate') {
       const dreamText = fields?.dream;
       const userPhotoUrl = fields?.userPhotoUrl || '';
       if (!dreamText) return res.status(400).json({ success: false, error: '請輸入夢境內容' });
 
-      // GPT 生成 prompt
       let prompt = `Wide shot: A surreal dreamscape where Character_A experiences: "${dreamText}". 35mm cinematic, slow dolly, ethereal lighting.`;
       let tags = ["夢境", "潛意識", "超現實"];
 
@@ -109,8 +106,6 @@ export default async function handler(req, res) {
         return res.status(500).json({ success: false, error: 'BYTEPLUS_API_KEY 未設定' });
       }
 
-      // ✅ 呼叫 BytePlus ModelArk Seedance API
-      // 有照片 → image-to-video，無照片 → text-to-video
       let seedanceBody;
       if (userPhotoUrl) {
         console.log("使用 Seedance image-to-video，照片:", userPhotoUrl);
@@ -157,7 +152,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, videoPrompt: prompt, tags, taskId });
     }
 
-    // ── 查詢進度 ──
     if (mode === 'check_status') {
       const taskId = fields?.taskId;
       if (!taskId) return res.status(400).json({ success: false, error: '缺少 taskId' });
@@ -170,21 +164,38 @@ export default async function handler(req, res) {
       const checkData = await checkRes.json();
       console.log("Seedance 查詢:", JSON.stringify(checkData));
 
-      // Seedance 狀態: queued / running / succeeded / failed
       const status = checkData.status || '';
       let videoUrl = '';
 
       if (status === 'succeeded') {
-        const contents = checkData.content || checkData.choices?.[0]?.message?.content || [];
-        for (const item of contents) {
-          if (item.type === 'video_url' && item.video_url?.url) {
-            videoUrl = item.video_url.url;
-            break;
+        // ✅ 修正：正確解析 BytePlus Seedance 回傳格式
+        try {
+          const contents = checkData.content;
+          if (Array.isArray(contents)) {
+            for (const item of contents) {
+              if (item.type === 'video_url' && item.video_url?.url) {
+                videoUrl = item.video_url.url;
+                break;
+              }
+            }
           }
+          // 備用：嘗試其他可能的格式
+          if (!videoUrl && checkData.choices?.[0]?.message?.content) {
+            const msgContent = checkData.choices[0].message.content;
+            if (Array.isArray(msgContent)) {
+              for (const item of msgContent) {
+                if (item.type === 'video_url' && item.video_url?.url) {
+                  videoUrl = item.video_url.url;
+                  break;
+                }
+              }
+            }
+          }
+        } catch(e) {
+          console.error("解析影片URL失敗:", e.message, JSON.stringify(checkData));
         }
       }
 
-      // 前端用的狀態對應
       let frontendStatus = status;
       if (status === 'succeeded') frontendStatus = 'completed';
       if (status === 'running' || status === 'queued') frontendStatus = 'processing';
