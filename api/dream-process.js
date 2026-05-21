@@ -2,89 +2,129 @@ import fetch from 'node-fetch';
 import crypto from 'crypto';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const KLING_ACCESS_KEY = process.env.KLING_ACCESS_KEY;
-const KLING_SECRET_KEY = process.env.KLING_SECRET_KEY;
 
-// bodyParser: false 是為了處理語音檔案上傳（multipart）
+// ✅ 同時支援新舊兩種環境變數格式
+// 新格式：KLING_ACCESS_KEY + KLING_SECRET_KEY（分開設定）
+// 舊格式：KLING_API_KEY = "AccessKey.SecretKey"（合在一起）
+let KLING_ACCESS_KEY = process.env.KLING_ACCESS_KEY;
+let KLING_SECRET_KEY = process.env.KLING_SECRET_KEY;
+
+if ((!KLING_ACCESS_KEY || !KLING_SECRET_KEY) && process.env.KLING_API_KEY) {
+  const raw = process.env.KLING_API_KEY.trim();
+  // 支援 "AmnTC8...E.DH3Qy...8" 格式
+  if (raw.includes('.')) {
+    const parts = raw.split('.');
+    KLING_ACCESS_KEY = parts[0].trim();
+    KLING_SECRET_KEY = parts[1].trim();
+  }
+  // 支援 "Access Key: xxx\nSecret Key: yyy" 格式
+  const accessMatch = raw.match(/Access\s*Key[:\s]+([A-Za-z0-9]+)/i);
+  const secretMatch = raw.match(/Secret\s*Key[:\s]+([A-Za-z0-9]+)/i);
+  if (accessMatch) KLING_ACCESS_KEY = accessMatch[1];
+  if (secretMatch) KLING_SECRET_KEY = secretMatch[1];
+}
+
+// bodyParser false = 支援 multipart 語音上傳
 export const config = { api: { bodyParser: false } };
 
 // ✅ 產生 Kling JWT
 function generateKlingJWT() {
   if (!KLING_ACCESS_KEY || !KLING_SECRET_KEY) {
-    throw new Error('Kling API Key 未設定，請在 Vercel 環境變數中設定 KLING_ACCESS_KEY 和 KLING_SECRET_KEY');
+    throw new Error('Kling API Key 未設定！請在 Vercel 環境變數中設定 KLING_ACCESS_KEY 和 KLING_SECRET_KEY（或舊版的 KLING_API_KEY）');
   }
   const header = { alg: 'HS256', typ: 'JWT' };
   const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
   const now = Math.floor(Date.now() / 1000);
   const payload = { iss: KLING_ACCESS_KEY, exp: now + 1800, nbf: now - 5 };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const signature = crypto.createHmac('sha256', KLING_SECRET_KEY)
-    .update(`${encodedHeader}.${encodedPayload}`).digest();
-  return `Bearer ${encodedHeader}.${encodedPayload}.${signature.toString('base64url')}`;
+  const sig = crypto.createHmac('sha256', KLING_SECRET_KEY)
+    .update(`${encodedHeader}.${encodedPayload}`).digest('base64url');
+  return `Bearer ${encodedHeader}.${encodedPayload}.${sig}`;
 }
 
-// ✅ 手動解析 multipart body（不依賴 formidable）
+// ✅ 手動解析 multipart / JSON body
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
-    let body = '';
     const chunks = [];
-    req.on('data', chunk => chunks.push(chunk));
+    req.on('data', c => chunks.push(c));
     req.on('end', () => {
       const buf = Buffer.concat(chunks);
-      const contentType = req.headers['content-type'] || '';
-      if (contentType.includes('application/json')) {
+      const ct = req.headers['content-type'] || '';
+
+      if (ct.includes('application/json')) {
         try { resolve({ fields: JSON.parse(buf.toString()), files: {} }); }
         catch(e) { reject(e); }
-      } else if (contentType.includes('multipart/form-data')) {
-        const boundary = contentType.split('boundary=')[1];
-        if (!boundary) return reject(new Error('No boundary'));
-        const parts = buf.toString('binary').split('--' + boundary);
-        const fields = {};
-        const files = {};
-        for (const part of parts) {
-          if (part === '' || part === '--\r\n' || part.trim() === '--') continue;
-          const [rawHeaders, ...bodyParts] = part.split('\r\n\r\n');
-          if (!rawHeaders) continue;
-          const bodyStr = bodyParts.join('\r\n\r\n').replace(/\r\n$/, '');
-          const nameMatch = rawHeaders.match(/name="([^"]+)"/);
-          const filenameMatch = rawHeaders.match(/filename="([^"]+)"/);
-          if (!nameMatch) continue;
-          const name = nameMatch[1];
-          if (filenameMatch) {
-            files[name] = {
-              filename: filenameMatch[1],
-              data: Buffer.from(bodyStr, 'binary'),
-              contentType: (rawHeaders.match(/Content-Type:\s*([^\r\n]+)/) || [])[1] || 'application/octet-stream'
-            };
-          } else {
-            fields[name] = bodyStr;
-          }
-        }
-        resolve({ fields, files });
-      } else {
-        try { resolve({ fields: JSON.parse(buf.toString()), files: {} }); }
-        catch(e) { resolve({ fields: {}, files: {} }); }
+        return;
       }
+
+      if (ct.includes('multipart/form-data')) {
+        const boundaryMatch = ct.match(/boundary=([^\s;]+)/);
+        if (!boundaryMatch) return reject(new Error('No multipart boundary'));
+        const boundary = boundaryMatch[1];
+        const fields = {}, files = {};
+
+        // 用 Buffer 切割，避免 binary 字串問題
+        const sep = Buffer.from(`\r\n--${boundary}`);
+        const end = Buffer.from(`\r\n--${boundary}--`);
+        let pos = buf.indexOf(`--${boundary}\r\n`);
+        if (pos === -1) return resolve({ fields, files });
+        pos += `--${boundary}\r\n`.length;
+
+        while (pos < buf.length) {
+          const nextSep = buf.indexOf(sep, pos);
+          const partEnd = nextSep === -1 ? buf.indexOf(end, pos) : nextSep;
+          if (partEnd === -1) break;
+
+          const part = buf.slice(pos, partEnd);
+          const headerEnd = part.indexOf('\r\n\r\n');
+          if (headerEnd === -1) { pos = partEnd + sep.length + 2; continue; }
+
+          const headerStr = part.slice(0, headerEnd).toString();
+          const bodyBuf = part.slice(headerEnd + 4);
+
+          const nameMatch = headerStr.match(/name="([^"]+)"/);
+          const filenameMatch = headerStr.match(/filename="([^"]+)"/);
+          const ctMatch = headerStr.match(/Content-Type:\s*([^\r\n]+)/);
+
+          if (nameMatch) {
+            const name = nameMatch[1];
+            if (filenameMatch) {
+              files[name] = {
+                filename: filenameMatch[1],
+                data: bodyBuf,
+                contentType: ctMatch ? ctMatch[1].trim() : 'application/octet-stream'
+              };
+            } else {
+              fields[name] = bodyBuf.toString();
+            }
+          }
+          pos = partEnd + sep.length + 2;
+          if (nextSep === -1) break;
+        }
+        return resolve({ fields, files });
+      }
+
+      // fallback: try JSON
+      try { resolve({ fields: JSON.parse(buf.toString()), files: {} }); }
+      catch(e) { resolve({ fields: {}, files: {} }); }
     });
     req.on('error', reject);
   });
 }
 
 // ✅ System Prompt
-const DREAM_SYSTEM_PROMPT = `You are a world-class cinematic AI director specializing in transforming abstract dream descriptions into precise, vivid video generation prompts for Kling AI.
-
-Convert the user's raw dream description into a structured English video prompt.
+const DREAM_SYSTEM_PROMPT = `You are a world-class cinematic AI director. Convert the user's dream description into a structured English video prompt for Kling AI.
 
 RULES:
-1. Shot Type: Always specify (Wide shot / Medium shot / Close-up / POV / Aerial)
-2. Camera Movement: dolly push-in, lateral tracking, crane up, slow zoom
-3. Lighting: golden hour, moonlit, neon-lit, bioluminescent glow
-4. Atmosphere: sensory language (heavy silence, ethereal mist)
-5. Subject & Action: name subjects clearly, physics-based motion
+1. Shot Type: Wide shot / Medium shot / Close-up / POV / Aerial
+2. Camera: dolly push-in, lateral tracking, crane up, slow zoom
+3. Lighting: golden hour, moonlit, neon-lit, bioluminescent
+4. Atmosphere: sensory language, ethereal mist, silence
+5. Subject & Action: clear names, physics-based motion
 6. Style: 35mm cinematic, surrealist dreamscape
 7. End with: [Negative: blurry, distorted limbs, text overlays, low quality, flickering]
 
-OUTPUT (JSON only, no extra text):
+OUTPUT (JSON only):
 {"prompt": "Full English video prompt", "tags": ["中文標籤1", "中文標籤2", "中文標籤3", "中文標籤4"]}`;
 
 export default async function handler(req, res) {
@@ -98,32 +138,41 @@ export default async function handler(req, res) {
     const { fields, files } = await parseBody(req);
     const mode = fields?.mode;
 
-    // ============= 語音轉文字 =============
+    // ───── 語音轉文字 ─────
     if (mode === 'transcribe') {
       const audioFile = files?.audio;
       if (!audioFile) return res.status(400).json({ success: false, error: '沒有收到音訊檔案' });
       if (!OPENAI_API_KEY) return res.status(500).json({ success: false, error: 'OpenAI Key 未設定' });
 
-      // 用 FormData 送給 Whisper
-      const { FormData, Blob } = await import('node-fetch');
+      // 用 FormData 送給 Whisper API
+      const FormData = (await import('form-data')).default;
       const formData = new FormData();
-      const blob = new Blob([audioFile.data], { type: audioFile.contentType });
-      formData.append('file', blob, audioFile.filename || 'audio.webm');
+      formData.append('file', audioFile.data, {
+        filename: audioFile.filename || 'dream.webm',
+        contentType: audioFile.contentType || 'audio/webm'
+      });
       formData.append('model', 'whisper-1');
       formData.append('language', 'zh');
 
       const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          ...formData.getHeaders()
+        },
         body: formData
       });
-      const whisperData = await whisperRes.json();
-      if (!whisperData.text) return res.status(500).json({ success: false, error: '語音辨識失敗，請再試一次' });
 
+      const whisperData = await whisperRes.json();
+      console.log('Whisper 回應:', JSON.stringify(whisperData));
+
+      if (!whisperData.text) {
+        return res.status(500).json({ success: false, error: `語音辨識失敗: ${whisperData.error?.message || '未知錯誤'}` });
+      }
       return res.status(200).json({ success: true, transcript: whisperData.text });
     }
 
-    // ============= 生成影片任務 =============
+    // ───── 生成影片任務 ─────
     if (!mode || mode === 'generate') {
       const dreamText = fields?.dream;
       if (!dreamText) return res.status(400).json({ success: false, error: '請輸入夢境內容' });
@@ -157,15 +206,17 @@ export default async function handler(req, res) {
 
       const klingAuth = generateKlingJWT();
       const klingBody = {
-        model_name: "kling-v2-1-master", // ✅ 升級到最高畫質
+        model_name: "kling-v2-1-master",
         prompt: prompt,
         negative_prompt: "blurry, distorted limbs, text overlays, low quality, flickering, watermark",
-        aspect_ratio: "16:9",            // ✅ 電影寬幅比例
+        aspect_ratio: "16:9",
         duration: "5",
-        mode: "pro"                      // ✅ pro 模式配合 v2.1
+        mode: "pro"
       };
 
+      console.log("KLING_ACCESS_KEY 前4碼:", KLING_ACCESS_KEY?.slice(0,4));
       console.log("Kling body:", JSON.stringify(klingBody));
+
       const klingRes = await fetch('https://api.klingai.com/v1/videos/text2video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': klingAuth },
@@ -175,23 +226,21 @@ export default async function handler(req, res) {
       console.log("Kling 回應:", JSON.stringify(klingData));
 
       if (klingData.code !== 0) {
-        let errorMsg = klingData.message || "Kling API 錯誤";
-        if (klingData.code === 1102) errorMsg = "Kling 帳戶餘額不足！";
-        if (klingData.code === 1000) errorMsg = "Kling 金鑰認證失敗";
-        return res.status(500).json({ success: false, error: `Kling [${klingData.code}]: ${errorMsg}` });
+        let msg = klingData.message || "Kling API 錯誤";
+        if (klingData.code === 1102) msg = "Kling 帳戶餘額不足！";
+        if (klingData.code === 1000) msg = "Kling 金鑰認證失敗，請確認 Access Key / Secret Key 正確";
+        return res.status(500).json({ success: false, error: `Kling [${klingData.code}]: ${msg}` });
       }
 
       const taskId = klingData.data?.task_id;
       if (!taskId) return res.status(500).json({ success: false, error: "未取得 task_id" });
-
       return res.status(200).json({ success: true, videoPrompt: prompt, tags, taskId });
     }
 
-    // ============= 查詢進度 =============
+    // ───── 查詢進度 ─────
     if (mode === 'check_status') {
       const taskId = fields?.taskId;
       if (!taskId) return res.status(400).json({ success: false, error: '缺少 taskId' });
-
       const klingAuth = generateKlingJWT();
       const checkRes = await fetch(`https://api.klingai.com/v1/videos/text2video/${taskId}`, {
         method: 'GET',
