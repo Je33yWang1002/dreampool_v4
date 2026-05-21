@@ -212,6 +212,9 @@ export default async function handler(req, res) {
       }
 
       const klingAuth = generateKlingJWT();
+      // 取得前端傳來的使用者照片 URL（選填）
+      const userPhotoUrl = fields?.userPhotoUrl || '';
+
       const klingBody = {
         model_name: "kling-v2-1-master",
         prompt: prompt,
@@ -220,6 +223,13 @@ export default async function handler(req, res) {
         duration: "5",
         mode: "pro"
       };
+
+      // ✅ 如果有使用者照片，加入 image_reference 讓 AI 參考外貌特徵
+      if (userPhotoUrl) {
+        klingBody.image_reference = userPhotoUrl;
+        klingBody.image_reference_strength = 0.8;
+        console.log("帶入使用者照片參考:", userPhotoUrl);
+      }
 
       console.log("KLING_ACCESS_KEY 前4碼:", KLING_ACCESS_KEY?.slice(0,4));
       console.log("Kling body:", JSON.stringify(klingBody));
