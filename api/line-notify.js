@@ -1,8 +1,9 @@
 import fetch from 'node-fetch';
 import crypto from 'crypto';
 
-const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
+// ✅ 自動清除換行和空白，防止複製貼上時的格式問題
+const LINE_CHANNEL_ACCESS_TOKEN = (process.env.LINE_CHANNEL_ACCESS_TOKEN || '').replace(/[\r\n\s]/g, '');
+const LINE_CHANNEL_SECRET = (process.env.LINE_CHANNEL_SECRET || '').replace(/[\r\n\s]/g, '');
 
 export const config = { api: { bodyParser: true } };
 
