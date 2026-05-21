@@ -168,31 +168,26 @@ export default async function handler(req, res) {
       let videoUrl = '';
 
       if (status === 'succeeded') {
-        // ✅ 修正：正確解析 BytePlus Seedance 回傳格式
         try {
-          const contents = checkData.content;
-          if (Array.isArray(contents)) {
-            for (const item of contents) {
+          const content = checkData.content;
+          // 格式一：content 是物件 {"video_url": "https://..."}
+          if (content && typeof content === 'object' && !Array.isArray(content)) {
+            if (content.video_url) {
+              videoUrl = content.video_url;
+            }
+          }
+          // 格式二：content 是陣列 [{"type":"video_url","video_url":{"url":"..."}}]
+          if (!videoUrl && Array.isArray(content)) {
+            for (const item of content) {
               if (item.type === 'video_url' && item.video_url?.url) {
                 videoUrl = item.video_url.url;
                 break;
               }
             }
           }
-          // 備用：嘗試其他可能的格式
-          if (!videoUrl && checkData.choices?.[0]?.message?.content) {
-            const msgContent = checkData.choices[0].message.content;
-            if (Array.isArray(msgContent)) {
-              for (const item of msgContent) {
-                if (item.type === 'video_url' && item.video_url?.url) {
-                  videoUrl = item.video_url.url;
-                  break;
-                }
-              }
-            }
-          }
+          console.log("解析到影片URL:", videoUrl);
         } catch(e) {
-          console.error("解析影片URL失敗:", e.message, JSON.stringify(checkData));
+          console.error("解析影片URL失敗:", e.message);
         }
       }
 
