@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/dream-process.js": {
+      "maxDuration": 60
+    }
+  }
+}
