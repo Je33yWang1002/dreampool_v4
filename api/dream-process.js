@@ -113,7 +113,7 @@ export default async function handler(req, res) {
           model: "seedance-1-5-pro-251215",
           content: [
             { type: "image_url", image_url: { url: userPhotoUrl } },
-            { type: "text", text: prompt + " --ar 9:16 --dur 5" }
+            { type: "text", text: prompt + " --ar 9:16 --dur 5 --resolution 720p" }
           ]
         };
       } else {
@@ -121,7 +121,7 @@ export default async function handler(req, res) {
         seedanceBody = {
           model: "seedance-1-5-pro-251215",
           content: [
-            { type: "text", text: prompt + " --ar 9:16 --dur 5" }
+            { type: "text", text: prompt + " --ar 9:16 --dur 5 --resolution 720p" }
           ]
         };
       }
