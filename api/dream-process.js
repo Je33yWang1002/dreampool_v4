@@ -216,12 +216,12 @@ export default async function handler(req, res) {
       const userPhotoUrl = fields?.userPhotoUrl || '';
 
       const klingBody = {
-        model_name: "kling-v2-1-master",
+        model_name: "kling-v1-6",
         prompt: prompt,
         negative_prompt: "blurry, distorted limbs, text overlays, low quality, flickering, watermark",
         aspect_ratio: "9:16",
         duration: "5",
-        mode: "pro"
+        mode: "std"
       };
 
       // ✅ 如果有使用者照片，加入 image_reference 讓 AI 參考外貌特徵
