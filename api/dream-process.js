@@ -149,7 +149,7 @@ export default async function handler(req, res) {
             aspect_ratio: "9:16",
             resolution: "720p",
             movement_amplitude: "auto",
-            off_peak: "false"
+            off_peak: false
           })
         });
       } else {
@@ -168,7 +168,7 @@ export default async function handler(req, res) {
             aspect_ratio: "9:16",
             resolution: "720p",
             movement_amplitude: "auto",
-            off_peak: "false"
+            off_peak: false
           })
         });
       }
