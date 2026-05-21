@@ -583,8 +583,57 @@ async function startDreamProcess() {
 
                 if (status === 'succeed' || status === 'success') {
                     clearInterval(checkInterval);
+                    const rawVideoUrl = checkData.videoUrl;
+                    currentVideoUrl = rawVideoUrl;
+
+                    // ✅ 如果有上傳照片，先做換臉再顯示
+                    if (userPhotoUrl && rawVideoUrl) {
+                        statusBar.style.display = 'flex';
+                        statusText.textContent = '🎭 正在將你的臉換入影片中...';
+
+                        try {
+                            // 提交換臉任務
+                            const swapRes = await fetch('/api/face-swap', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ mode: 'swap', userPhotoUrl, videoUrl: rawVideoUrl })
+                            });
+                            const swapData = await swapRes.json();
+
+                            if (swapData.success && swapData.taskId) {
+                                const swapTaskId = swapData.taskId;
+                                // 輪詢換臉進度
+                                await new Promise((resolve) => {
+                                    const swapInterval = setInterval(async () => {
+                                        try {
+                                            const checkSwap = await fetch('/api/face-swap', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ mode: 'check_status', taskId: swapTaskId })
+                                            });
+                                            const swapCheck = await checkSwap.json();
+                                            if (swapCheck.status === 'succeeded' && swapCheck.swappedVideoUrl) {
+                                                clearInterval(swapInterval);
+                                                currentVideoUrl = swapCheck.swappedVideoUrl;
+                                                resolve();
+                                            } else if (swapCheck.status === 'failed') {
+                                                clearInterval(swapInterval);
+                                                // 換臉失敗就用原始影片
+                                                console.log('換臉失敗，使用原始影片');
+                                                resolve();
+                                            } else {
+                                                statusText.textContent = '🎭 換臉處理中，請稍候...';
+                                            }
+                                        } catch(e) { /* 繼續等 */ }
+                                    }, 3000);
+                                });
+                            }
+                        } catch(e) {
+                            console.log('換臉發生錯誤，使用原始影片:', e.message);
+                        }
+                    }
+
                     statusBar.style.display = 'none';
-                    currentVideoUrl = checkData.videoUrl;
 
                     const player = document.getElementById('dreamVideoPlayer');
                     player.src = currentVideoUrl;
