@@ -4,12 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎬 潛意識電影院</title>
-    <meta property="og:title" content="🎬 潛意識電影院">
-    <meta property="og:description" content="說出你的夢境，AI 幫你拍成電影">
-    <meta property="og:image" content="https://dreampool-v4.vercel.app/og-cover.jpg">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: #070b14;
@@ -20,308 +16,202 @@
             justify-content: center;
             padding: 40px 16px 60px;
         }
+        .container { width: 100%; max-width: 580px; }
 
-        .container {
-            width: 100%;
-            max-width: 580px;
-        }
-
-        /* ── 標題區 ── */
-        .hero {
-            text-align: center;
-            margin-bottom: 32px;
-        }
+        /* ── 標題 ── */
+        .hero { text-align: center; margin-bottom: 24px; }
         .hero h1 {
-            font-size: 32px;
-            font-weight: 800;
+            font-size: 30px; font-weight: 800;
             background: linear-gradient(135deg, #ff4757, #ff6b35, #ffa502);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 8px;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; margin-bottom: 6px;
         }
-        .hero p { color: #6b7280; font-size: 15px; }
+        .hero p { color: #6b7280; font-size: 14px; }
 
         /* ── 卡片 ── */
         .card {
-            background: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 18px;
-            padding: 28px;
-            margin-bottom: 20px;
+            background: #111827; border: 1px solid #1f2937;
+            border-radius: 18px; padding: 24px; margin-bottom: 16px;
         }
+
+        /* ── LINE 綁定區 ── */
+        .line-section { display: flex; align-items: center; gap: 14px; }
+        .line-avatar {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: #1f2937; border: 2px solid #374151;
+            overflow: hidden; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+        }
+        .line-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .line-info { flex: 1; }
+        .line-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+        .line-sub { font-size: 12px; color: #6b7280; }
+
+        .btn-line-login {
+            display: flex; align-items: center; gap: 8px;
+            background: #06C755; color: white;
+            border: none; padding: 10px 18px;
+            border-radius: 10px; cursor: pointer;
+            font-size: 14px; font-weight: 700;
+            transition: all 0.2s; white-space: nowrap;
+            text-decoration: none;
+        }
+        .btn-line-login:hover { background: #05a847; transform: translateY(-1px); }
+
+        .btn-line-logout {
+            background: transparent; border: 1px solid #374151;
+            color: #9ca3af; padding: 6px 12px;
+            border-radius: 8px; cursor: pointer;
+            font-size: 12px; transition: all 0.2s;
+        }
+        .btn-line-logout:hover { border-color: #ff4757; color: #ff4757; }
+
+        .line-hint {
+            font-size: 12px; color: #4b5563;
+            padding: 10px 14px; background: #0d1117;
+            border-radius: 8px; margin-top: 12px;
+            border-left: 3px solid #06C755;
+            display: none;
+        }
+        .line-hint.show { display: block; }
 
         /* ── 輸入區 ── */
-        .input-label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #9ca3af;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 10px;
-        }
-
+        .input-label { font-size: 13px; font-weight: 600; color: #9ca3af; letter-spacing: 0.8px; margin-bottom: 10px; }
         textarea {
-            width: 100%;
-            height: 100px;
-            background: #0d1117;
-            border: 1.5px solid #21262d;
-            border-radius: 10px;
-            color: #e2e8f0;
-            padding: 14px;
-            font-size: 15px;
-            resize: vertical;
-            line-height: 1.6;
-            transition: border-color 0.2s;
+            width: 100%; height: 100px; background: #0d1117;
+            border: 1.5px solid #21262d; border-radius: 10px;
+            color: #e2e8f0; padding: 14px; font-size: 15px;
+            resize: vertical; line-height: 1.6; transition: border-color 0.2s;
         }
         textarea:focus { outline: none; border-color: #ff4757; }
 
-        /* ── 語音按鈕區 ── */
-        .voice-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 12px;
-        }
-
+        /* ── 語音按鈕 ── */
+        .voice-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
         .btn-voice {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #1f2937;
-            border: 1.5px solid #374151;
-            color: #d1d5db;
-            padding: 10px 16px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.2s;
-            white-space: nowrap;
+            display: flex; align-items: center; gap: 8px;
+            background: #1f2937; border: 1.5px solid #374151;
+            color: #d1d5db; padding: 10px 16px; border-radius: 10px;
+            cursor: pointer; font-size: 14px; font-weight: 600;
+            transition: all 0.2s; white-space: nowrap;
         }
         .btn-voice:hover { border-color: #ff4757; color: #ff4757; }
         .btn-voice.recording {
-            background: rgba(255,71,87,0.12);
-            border-color: #ff4757;
-            color: #ff4757;
+            background: rgba(255,71,87,0.12); border-color: #ff4757; color: #ff4757;
             animation: pulse-border 1.5s ease-in-out infinite;
         }
         @keyframes pulse-border {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(255,71,87,0.3); }
+            0%,100% { box-shadow: 0 0 0 0 rgba(255,71,87,0.3); }
             50% { box-shadow: 0 0 0 6px rgba(255,71,87,0); }
         }
-
         .mic-dot {
-            width: 10px; height: 10px;
-            border-radius: 50%;
-            background: #ff4757;
-            display: none;
-            animation: blink 1s ease-in-out infinite;
+            width: 10px; height: 10px; border-radius: 50%; background: #ff4757;
+            display: none; animation: blink 1s ease-in-out infinite;
         }
         .btn-voice.recording .mic-dot { display: block; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
-
         .voice-hint { font-size: 12px; color: #4b5563; }
 
         /* ── 主按鈕 ── */
         .btn-submit {
-            width: 100%;
-            background: linear-gradient(135deg, #ff4757, #c0392b);
-            color: white;
-            border: none;
-            padding: 16px;
-            font-size: 17px;
-            font-weight: 700;
-            border-radius: 12px;
-            cursor: pointer;
-            margin-top: 16px;
-            transition: all 0.2s;
-            letter-spacing: 0.3px;
+            width: 100%; background: linear-gradient(135deg, #ff4757, #c0392b);
+            color: white; border: none; padding: 16px; font-size: 17px;
+            font-weight: 700; border-radius: 12px; cursor: pointer;
+            margin-top: 16px; transition: all 0.2s;
         }
-        .btn-submit:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(255,71,87,0.35);
+        .btn-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(255,71,87,0.35); }
+        .btn-submit:disabled { background: #1f2937; color: #4b5563; cursor: not-allowed; }
+        .quality-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: rgba(251,191,36,0.15); border: 1px solid rgba(251,191,36,0.3);
+            color: #fbbf24; padding: 3px 8px; border-radius: 10px;
+            font-size: 11px; font-weight: 600; margin-left: 6px;
         }
-        .btn-submit:disabled { background: #1f2937; color: #4b5563; cursor: not-allowed; transform: none; box-shadow: none; }
 
-        /* ── 進度狀態 ── */
+        /* ── 狀態列 ── */
         .status-bar {
-            display: none;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 18px;
-            background: #0d1117;
-            border: 1px solid #1f2937;
-            border-radius: 10px;
-            margin-top: 16px;
-            font-size: 14px;
-            color: #9ca3af;
+            display: none; align-items: center; gap: 12px;
+            padding: 14px 18px; background: #0d1117;
+            border: 1px solid #1f2937; border-radius: 10px;
+            margin-top: 16px; font-size: 14px; color: #9ca3af;
         }
         .spinner {
             width: 18px; height: 18px; flex-shrink: 0;
-            border: 2.5px solid #1f2937;
-            border-top-color: #ff4757;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            border: 2.5px solid #1f2937; border-top-color: #ff4757;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ── 結果區 ── */
         .result-card { display: none; }
-
-        .section-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: #4b5563;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            margin-bottom: 8px;
-        }
-
+        .section-label { font-size: 11px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 8px; }
         .tags-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
         .tag {
-            background: rgba(99,102,241,0.1);
-            color: #818cf8;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 13px;
+            background: rgba(99,102,241,0.1); color: #818cf8;
+            padding: 5px 12px; border-radius: 20px; font-size: 13px;
             border: 1px solid rgba(99,102,241,0.25);
         }
-
         .prompt-box {
-            background: #0d1117;
-            border: 1px solid #21262d;
-            padding: 14px 16px;
-            border-radius: 10px;
-            color: #4ade80;
-            font-family: 'SF Mono', 'Monaco', monospace;
-            font-size: 12px;
-            line-height: 1.7;
-            word-break: break-word;
-            margin-bottom: 20px;
+            background: #0d1117; border: 1px solid #21262d;
+            padding: 14px 16px; border-radius: 10px; color: #4ade80;
+            font-family: 'SF Mono','Monaco',monospace; font-size: 12px;
+            line-height: 1.7; word-break: break-word; margin-bottom: 20px;
         }
-
         .divider { border: none; border-top: 1px solid #1f2937; margin: 20px 0; }
 
         /* ── 影片區 ── */
         .video-section { display: none; }
-
         .success-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(74,222,128,0.08);
-            border: 1px solid rgba(74,222,128,0.25);
-            color: #4ade80;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 14px;
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.25);
+            color: #4ade80; padding: 6px 14px; border-radius: 20px;
+            font-size: 13px; font-weight: 600; margin-bottom: 14px;
         }
-
-        /* 16:9 影片容器 */
         .video-wrapper {
-            position: relative;
-            background: #000;
-            border-radius: 14px;
-            overflow: hidden;
-            border: 2px solid rgba(255,71,87,0.5);
-            aspect-ratio: 9 / 16;
-            max-width: 340px;       /* 直式影片不要太寬 */
-            margin: 0 auto;         /* 置中 */
+            position: relative; background: #000; border-radius: 14px;
+            overflow: hidden; border: 2px solid rgba(255,71,87,0.5);
+            aspect-ratio: 9 / 16; max-width: 300px; margin: 0 auto;
             box-shadow: 0 0 40px rgba(255,71,87,0.15);
         }
-        .video-wrapper video {
-            width: 100%; height: 100%;
-            object-fit: cover; display: block;
-        }
+        .video-wrapper video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-        /* ── 操作按鈕列 ── */
-        .action-row {
-            display: flex;
-            gap: 10px;
-            margin-top: 14px;
-        }
-
+        /* ── 操作按鈕 ── */
+        .action-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
         .btn-action {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 11px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-            border: none;
+            flex: 1; min-width: 80px;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+            padding: 11px 8px; border-radius: 10px; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; border: none;
         }
-        .btn-download {
-            background: rgba(74,222,128,0.1);
-            border: 1px solid rgba(74,222,128,0.3);
-            color: #4ade80;
-        }
+        .btn-download { background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3); color: #4ade80; }
         .btn-download:hover { background: rgba(74,222,128,0.2); }
-
-        .btn-share {
-            background: rgba(99,102,241,0.1);
-            border: 1px solid rgba(99,102,241,0.3);
-            color: #818cf8;
-        }
+        .btn-copy { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #fbbf24; }
+        .btn-copy:hover { background: rgba(251,191,36,0.2); }
+        .btn-share-line { background: rgba(6,199,85,0.1); border: 1px solid rgba(6,199,85,0.3); color: #06C755; }
+        .btn-share-line:hover { background: rgba(6,199,85,0.2); }
+        .btn-share { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); color: #818cf8; }
         .btn-share:hover { background: rgba(99,102,241,0.2); }
 
-        .btn-copy {
-            background: rgba(251,191,36,0.1);
-            border: 1px solid rgba(251,191,36,0.3);
-            color: #fbbf24;
+        /* ── LINE 推送狀態 ── */
+        .line-push-status {
+            margin-top: 12px; padding: 12px 16px; border-radius: 10px;
+            font-size: 13px; font-weight: 500; display: none;
         }
-        .btn-copy:hover { background: rgba(251,191,36,0.2); }
+        .line-push-status.success { background: rgba(6,199,85,0.1); border: 1px solid rgba(6,199,85,0.3); color: #06C755; }
+        .line-push-status.error { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.3); color: #ff4757; }
 
-        /* ── 分享提示 ── */
+        /* ── 渲染中 ── */
+        .generating-msg { text-align: center; padding: 20px; color: #4b5563; font-size: 14px; }
+
+        /* ── Toast ── */
         .share-toast {
-            position: fixed;
-            bottom: 24px;
-            left: 50%;
+            position: fixed; bottom: 24px; left: 50%;
             transform: translateX(-50%) translateY(80px);
-            background: #1f2937;
-            border: 1px solid #374151;
-            color: #f9fafb;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 500;
-            transition: transform 0.3s ease;
-            z-index: 999;
-            white-space: nowrap;
+            background: #1f2937; border: 1px solid #374151; color: #f9fafb;
+            padding: 12px 20px; border-radius: 10px; font-size: 14px;
+            transition: transform 0.3s ease; z-index: 999; white-space: nowrap;
         }
         .share-toast.show { transform: translateX(-50%) translateY(0); }
-
-        /* ── 渲染中提示 ── */
-        .generating-msg {
-            text-align: center;
-            padding: 20px;
-            color: #4b5563;
-            font-size: 14px;
-        }
-
-        /* ── 品質徽章 ── */
-        .quality-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            background: rgba(251,191,36,0.08);
-            border: 1px solid rgba(251,191,36,0.2);
-            color: #fbbf24;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-left: 8px;
-            vertical-align: middle;
-        }
     </style>
 </head>
 <body>
@@ -333,12 +223,29 @@
         <p>說出你昨晚的夢境，AI 幫你拍成電影</p>
     </div>
 
+    <!-- LINE 綁定卡片 -->
+    <div class="card">
+        <div class="line-section" id="lineSection">
+            <!-- 未登入狀態 -->
+            <div class="line-avatar" id="lineAvatar">👤</div>
+            <div class="line-info">
+                <div class="line-name" id="lineName">尚未綁定 LINE</div>
+                <div class="line-sub" id="lineSub">綁定後，夢境影片將自動傳送到你的 LINE</div>
+            </div>
+            <button class="btn-line-login" id="lineLoginBtn" onclick="lineLogin()">
+                <span>🟢</span> LINE 登入
+            </button>
+        </div>
+        <div class="line-hint" id="lineHint">
+            ✅ 綁定成功！每次生成影片後，會自動將夢境記錄與影片連結傳送到你的 LINE 聊天室。
+        </div>
+    </div>
+
     <!-- 輸入卡片 -->
     <div class="card">
         <div class="input-label">🔮 描述你的夢境</div>
         <textarea id="dreamInput" placeholder="例如：我夢見自己在螢光色的深海森林裡飛翔，身旁有一隻巨大的藍色發光水母緩慢游過..."></textarea>
 
-        <!-- 語音輸入按鈕 -->
         <div class="voice-row">
             <button class="btn-voice" id="voiceBtn" onclick="toggleRecording()">
                 <span>🎙️</span>
@@ -353,7 +260,6 @@
             <span class="quality-badge">✨ v2.1 Pro</span>
         </button>
 
-        <!-- 狀態列 -->
         <div class="status-bar" id="statusBar">
             <div class="spinner"></div>
             <span id="statusText">正在連接夢境頻道...</span>
@@ -378,29 +284,22 @@
                 <video id="dreamVideoPlayer" controls autoplay loop playsinline preload="auto"></video>
             </div>
 
-            <!-- 操作按鈕 -->
             <div class="action-row">
-                <button class="btn-action btn-download" id="downloadBtn" onclick="downloadVideo()">
-                    ⬇️ 下載影片
-                </button>
-                <button class="btn-action btn-copy" onclick="copyLink()">
-                    🔗 複製連結
-                </button>
-                <button class="btn-action btn-share" onclick="shareVideo()">
-                    📤 分享
-                </button>
+                <button class="btn-action btn-download" onclick="downloadVideo()">⬇️ 下載</button>
+                <button class="btn-action btn-copy" onclick="copyLink()">🔗 複製連結</button>
+                <button class="btn-action btn-share-line" id="sendLineBtn" onclick="sendToLine()">💚 傳到 LINE</button>
+                <button class="btn-action btn-share" onclick="shareVideo()">📤 分享</button>
             </div>
+
+            <!-- LINE 推送狀態 -->
+            <div class="line-push-status" id="linePushStatus"></div>
         </div>
 
-        <!-- 渲染中 -->
-        <div class="generating-msg" id="generatingMsg">
-            ⏳ 夢境影片正在渲染中，請稍候...
-        </div>
+        <div class="generating-msg" id="generatingMsg">⏳ 夢境影片正在渲染中，請稍候...</div>
     </div>
 </div>
 
-<!-- Toast 提示 -->
-<div class="share-toast" id="shareToast">✅ 連結已複製到剪貼簿！</div>
+<div class="share-toast" id="shareToast"></div>
 
 <script>
 // ── 全域狀態 ──
@@ -409,14 +308,105 @@ let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
 let currentVideoUrl = '';
+let currentDreamText = '';
+let currentTags = [];
+let currentPrompt = '';
+let lineUserId = '';
+let lineDisplayName = '';
+
+// ── 初始化：讀取 URL 參數（LINE 登入後跳轉回來帶的資料）和 localStorage ──
+function init() {
+    const params = new URLSearchParams(window.location.search);
+
+    // LINE 登入成功回傳的參數
+    if (params.get('line_user_id')) {
+        lineUserId = params.get('line_user_id');
+        lineDisplayName = decodeURIComponent(params.get('line_display_name') || '');
+        const linePicture = decodeURIComponent(params.get('line_picture') || '');
+
+        // 存到 localStorage
+        localStorage.setItem('line_user_id', lineUserId);
+        localStorage.setItem('line_display_name', lineDisplayName);
+        localStorage.setItem('line_picture', linePicture);
+
+        // 清掉 URL 參數
+        window.history.replaceState({}, '', '/');
+        updateLineUI(lineDisplayName, linePicture);
+        document.getElementById('lineHint').classList.add('show');
+    }
+
+    // LINE 登入錯誤
+    if (params.get('line_error')) {
+        showToast('❌ LINE 登入失敗，請再試一次');
+        window.history.replaceState({}, '', '/');
+    }
+
+    // 從 localStorage 恢復登入狀態
+    const savedId = localStorage.getItem('line_user_id');
+    if (savedId && !lineUserId) {
+        lineUserId = savedId;
+        lineDisplayName = localStorage.getItem('line_display_name') || '';
+        const pic = localStorage.getItem('line_picture') || '';
+        updateLineUI(lineDisplayName, pic);
+    }
+}
+
+// ── 更新 LINE 登入 UI ──
+function updateLineUI(name, picture) {
+    document.getElementById('lineName').textContent = name || 'LINE 用戶';
+    document.getElementById('lineSub').textContent = '夢境影片將自動傳送到你的 LINE ✅';
+
+    const avatar = document.getElementById('lineAvatar');
+    if (picture) {
+        avatar.innerHTML = `<img src="${picture}" alt="avatar">`;
+    } else {
+        avatar.textContent = '🟢';
+    }
+
+    // 換成登出按鈕
+    const loginBtn = document.getElementById('lineLoginBtn');
+    loginBtn.textContent = '登出';
+    loginBtn.className = 'btn-line-logout';
+    loginBtn.onclick = lineLogout;
+}
+
+// ── LINE 登入 ──
+async function lineLogin() {
+    try {
+        const res = await fetch('/api/line-login?action=get_url');
+        const data = await res.json();
+        if (data.loginUrl) {
+            window.location.href = data.loginUrl;
+        } else {
+            showToast('❌ 無法取得 LINE 登入網址');
+        }
+    } catch(e) {
+        showToast('❌ 連線錯誤，請重試');
+    }
+}
+
+// ── LINE 登出 ──
+function lineLogout() {
+    lineUserId = '';
+    lineDisplayName = '';
+    localStorage.removeItem('line_user_id');
+    localStorage.removeItem('line_display_name');
+    localStorage.removeItem('line_picture');
+
+    document.getElementById('lineAvatar').textContent = '👤';
+    document.getElementById('lineName').textContent = '尚未綁定 LINE';
+    document.getElementById('lineSub').textContent = '綁定後，夢境影片將自動傳送到你的 LINE';
+    document.getElementById('lineHint').classList.remove('show');
+
+    const loginBtn = document.getElementById('lineLoginBtn');
+    loginBtn.textContent = '🟢 LINE 登入';
+    loginBtn.className = 'btn-line-login';
+    loginBtn.onclick = lineLogin;
+}
 
 // ── 語音錄音 ──
 async function toggleRecording() {
-    if (isRecording) {
-        stopRecording();
-    } else {
-        await startRecording();
-    }
+    if (isRecording) { stopRecording(); } else { await startRecording(); }
 }
 
 async function startRecording() {
@@ -424,38 +414,23 @@ async function startRecording() {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioChunks = [];
         mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-
-        mediaRecorder.ondataavailable = e => {
-            if (e.data.size > 0) audioChunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = async () => {
-            stream.getTracks().forEach(t => t.stop());
-            await sendAudioToWhisper();
-        };
-
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = async () => { stream.getTracks().forEach(t => t.stop()); await sendAudioToWhisper(); };
         mediaRecorder.start();
         isRecording = true;
-
-        const btn = document.getElementById('voiceBtn');
-        btn.classList.add('recording');
+        document.getElementById('voiceBtn').classList.add('recording');
         document.getElementById('voiceBtnText').textContent = '錄音中... 點擊停止';
         document.getElementById('voiceHint').textContent = '正在錄音，說完夢境後點擊停止';
-
-    } catch (err) {
-        alert('無法使用麥克風，請允許瀏覽器麥克風權限。');
-    }
+    } catch(e) { alert('無法使用麥克風，請允許瀏覽器麥克風權限。'); }
 }
 
 function stopRecording() {
     if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        const btn = document.getElementById('voiceBtn');
-        btn.classList.remove('recording');
+        mediaRecorder.stop(); isRecording = false;
+        document.getElementById('voiceBtn').classList.remove('recording');
         document.getElementById('voiceBtnText').textContent = '辨識中...';
         document.getElementById('voiceHint').textContent = '正在將語音轉換為文字...';
-        btn.disabled = true;
+        document.getElementById('voiceBtn').disabled = true;
     }
 }
 
@@ -463,8 +438,6 @@ async function sendAudioToWhisper() {
     const blob = new Blob(audioChunks, { type: 'audio/webm' });
     const formData = new FormData();
     formData.append('audio', blob, 'dream.webm');
-    // 語音走獨立端點，不需要 mode 欄位
-
     try {
         const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
         const data = await res.json();
@@ -472,17 +445,14 @@ async function sendAudioToWhisper() {
             document.getElementById('dreamInput').value = data.transcript;
             document.getElementById('voiceHint').textContent = '✅ 語音辨識完成！';
         } else {
-            document.getElementById('voiceHint').textContent = '❌ 辨識失敗，請重試';
+            document.getElementById('voiceHint').textContent = '❌ ' + (data.error || '辨識失敗，請重試');
         }
     } catch(e) {
         document.getElementById('voiceHint').textContent = '❌ 連線錯誤，請重試';
     } finally {
-        const btn = document.getElementById('voiceBtn');
-        btn.disabled = false;
+        document.getElementById('voiceBtn').disabled = false;
         document.getElementById('voiceBtnText').textContent = '語音輸入';
-        setTimeout(() => {
-            document.getElementById('voiceHint').textContent = '按下按鈕，說出你的夢境';
-        }, 3000);
+        setTimeout(() => { document.getElementById('voiceHint').textContent = '按下按鈕，說出你的夢境'; }, 3000);
     }
 }
 
@@ -491,19 +461,22 @@ async function startDreamProcess() {
     const dreamText = document.getElementById('dreamInput').value.trim();
     if (!dreamText) { alert('請先輸入或說出你的夢境！'); return; }
 
+    currentDreamText = dreamText;
+
     const submitBtn = document.getElementById('submitBtn');
     const statusBar = document.getElementById('statusBar');
     const statusText = document.getElementById('statusText');
     const resultCard = document.getElementById('resultCard');
     const videoSection = document.getElementById('videoSection');
     const generatingMsg = document.getElementById('generatingMsg');
+    const linePushStatus = document.getElementById('linePushStatus');
 
-    // 重置
     submitBtn.disabled = true;
     statusBar.style.display = 'flex';
     resultCard.style.display = 'none';
     videoSection.style.display = 'none';
     generatingMsg.style.display = 'block';
+    linePushStatus.style.display = 'none';
     document.getElementById('dreamVideoPlayer').src = '';
     currentVideoUrl = '';
     if (checkInterval) clearInterval(checkInterval);
@@ -518,11 +491,14 @@ async function startDreamProcess() {
         const result = await res.json();
         if (!result.success) throw new Error(result.error || '發生未知錯誤');
 
-        // 顯示標籤與 Prompt
+        // 顯示標籤和 Prompt
+        currentPrompt = result.videoPrompt;
+        currentTags = result.tags || [];
+
         document.getElementById('promptContent').textContent = result.videoPrompt;
         const tagContainer = document.getElementById('tagContainer');
         tagContainer.innerHTML = '';
-        (result.tags || []).forEach(tag => {
+        currentTags.forEach(tag => {
             const span = document.createElement('span');
             span.className = 'tag';
             span.textContent = '#' + tag;
@@ -530,10 +506,10 @@ async function startDreamProcess() {
         });
         resultCard.style.display = 'block';
 
-        // 開始輪詢
         const taskId = result.taskId;
         statusText.textContent = '🎬 Kling v2.1 Pro 正在渲染高畫質影片（1-3 分鐘）...';
 
+        // 輪詢影片狀態
         checkInterval = setInterval(async () => {
             try {
                 const checkForm = new FormData();
@@ -559,11 +535,15 @@ async function startDreamProcess() {
                     videoSection.style.display = 'block';
                     submitBtn.disabled = false;
 
+                    // ✅ 如果有綁定 LINE，自動推送
+                    if (lineUserId) {
+                        await autoSendToLine();
+                    }
+
                 } else if (status === 'failed') {
                     clearInterval(checkInterval);
                     statusText.textContent = '❌ 影片生成失敗，請換個描述再試一次。';
                     submitBtn.disabled = false;
-
                 } else {
                     const map = { processing: '🎥 渲染中', queued: '💤 排隊中', submitted: '📤 已提交' };
                     statusText.textContent = `⏳ ${map[status] || status}，請稍候...`;
@@ -578,6 +558,52 @@ async function startDreamProcess() {
     }
 }
 
+// ── 自動推送到 LINE（影片完成後自動呼叫）──
+async function autoSendToLine() {
+    const status = document.getElementById('linePushStatus');
+    status.className = 'line-push-status';
+    status.textContent = '💚 正在傳送到你的 LINE...';
+    status.style.display = 'block';
+
+    try {
+        const res = await fetch('/api/line-notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lineUserId,
+                dreamText: currentDreamText,
+                tags: currentTags,
+                videoPrompt: currentPrompt,
+                videoUrl: currentVideoUrl
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            status.className = 'line-push-status success';
+            status.textContent = '✅ 夢境記錄已傳送到你的 LINE！';
+        } else {
+            status.className = 'line-push-status error';
+            status.textContent = '⚠️ LINE 傳送失敗：' + (data.error || '請稍後重試');
+        }
+    } catch(e) {
+        status.className = 'line-push-status error';
+        status.textContent = '⚠️ LINE 傳送時發生錯誤';
+    }
+}
+
+// ── 手動傳送到 LINE ──
+async function sendToLine() {
+    if (!lineUserId) {
+        showToast('請先點上方「🟢 LINE 登入」綁定帳號');
+        return;
+    }
+    if (!currentVideoUrl) {
+        showToast('影片尚未生成完成');
+        return;
+    }
+    await autoSendToLine();
+}
+
 // ── 下載影片 ──
 async function downloadVideo() {
     if (!currentVideoUrl) return;
@@ -586,47 +612,36 @@ async function downloadVideo() {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `dream-${Date.now()}.mp4`;
-        a.click();
+        a.href = url; a.download = `dream-${Date.now()}.mp4`; a.click();
         URL.revokeObjectURL(url);
-    } catch(e) {
-        // 若跨域無法直接下載，改為開新分頁
-        window.open(currentVideoUrl, '_blank');
-    }
+    } catch(e) { window.open(currentVideoUrl, '_blank'); }
 }
 
 // ── 複製連結 ──
 function copyLink() {
-    const shareUrl = currentVideoUrl || window.location.href;
-    navigator.clipboard.writeText(shareUrl).then(() => {
+    const url = currentVideoUrl || window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
         showToast('✅ 連結已複製！可貼到 LINE / IG 分享');
-    }).catch(() => {
-        showToast('❌ 複製失敗，請手動複製網址');
-    });
+    }).catch(() => showToast('❌ 複製失敗'));
 }
 
-// ── 分享 ──
+// ── 系統分享 ──
 function shareVideo() {
-    const shareData = {
-        title: '🎬 我的潛意識電影',
-        text: '用 AI 把我的夢境拍成電影了！',
-        url: currentVideoUrl || window.location.href
-    };
-    if (navigator.share) {
-        navigator.share(shareData).catch(() => copyLink());
-    } else {
-        copyLink();
-    }
+    const shareData = { title: '🎬 我的潛意識電影', text: '用 AI 把我的夢境拍成電影了！', url: currentVideoUrl || window.location.href };
+    if (navigator.share) { navigator.share(shareData).catch(() => copyLink()); }
+    else { copyLink(); }
 }
 
-// ── Toast 提示 ──
+// ── Toast ──
 function showToast(msg) {
     const toast = document.getElementById('shareToast');
     toast.textContent = msg;
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3000);
 }
+
+// 頁面載入時初始化
+init();
 </script>
 </body>
 </html>
