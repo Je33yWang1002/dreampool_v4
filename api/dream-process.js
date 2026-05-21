@@ -145,9 +145,8 @@ export default async function handler(req, res) {
             model: "viduq1",
             images: [userPhotoUrl],   // 使用者照片作為角色參考
             prompt: prompt,
-            duration: "5",
+            duration: 5,
             aspect_ratio: "9:16",
-            resolution: "720p",
             movement_amplitude: "auto",
             off_peak: false
           })
@@ -164,9 +163,8 @@ export default async function handler(req, res) {
           body: JSON.stringify({
             model: "viduq1",
             prompt: prompt,
-            duration: "5",
+            duration: 5,
             aspect_ratio: "9:16",
-            resolution: "720p",
             movement_amplitude: "auto",
             off_peak: false
           })
