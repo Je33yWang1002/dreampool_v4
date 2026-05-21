@@ -581,7 +581,7 @@ async function startDreamProcess() {
 
                 const status = (checkData.status || '').toLowerCase();
 
-                if (status === 'succeed' || status === 'success') {
+                if (status === 'completed' || status === 'succeed' || status === 'succeeded' || status === 'success') {
                     clearInterval(checkInterval);
                     const rawVideoUrl = checkData.videoUrl;
                     currentVideoUrl = rawVideoUrl;
