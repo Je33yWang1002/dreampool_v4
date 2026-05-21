@@ -461,10 +461,10 @@ async function sendAudioToWhisper() {
     const blob = new Blob(audioChunks, { type: 'audio/webm' });
     const formData = new FormData();
     formData.append('audio', blob, 'dream.webm');
-    formData.append('mode', 'transcribe');
+    // 語音走獨立端點，不需要 mode 欄位
 
     try {
-        const res = await fetch('/api/dream-process', { method: 'POST', body: formData });
+        const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success && data.transcript) {
             document.getElementById('dreamInput').value = data.transcript;
