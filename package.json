@@ -1,10 +1,8 @@
 {
   "name": "subconscious-cinema",
   "version": "1.0.0",
+  "type": "module",
   "dependencies": {
-    "formidable": "^3.5.1",
-    "node-fetch": "^2.6.7",
-    "form-data": "^4.0.0",
-    "crypto": "^1.0.1"
+    "node-fetch": "^2.6.7"
   }
 }
