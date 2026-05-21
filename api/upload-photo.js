@@ -1,13 +1,13 @@
 import fetch from 'node-fetch';
 import crypto from 'crypto';
 
-const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
-const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+const CLOUDINARY_CLOUD_NAME = (process.env.CLOUDINARY_CLOUD_NAME || '').trim();
+const CLOUDINARY_API_KEY = (process.env.CLOUDINARY_API_KEY || '').trim();
+const CLOUDINARY_API_SECRET = (process.env.CLOUDINARY_API_SECRET || '').trim();
 
 export const config = { api: { bodyParser: false } };
 
-// 解析 multipart body 取出圖片
+// 解析 multipart body
 async function parseMultipart(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -51,12 +51,6 @@ async function parseMultipart(req) {
   });
 }
 
-// 產生 Cloudinary 簽名
-function generateSignature(params, apiSecret) {
-  const sorted = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
-  return crypto.createHash('sha256').update(sorted + apiSecret).digest('hex');
-}
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -75,11 +69,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: '沒有收到照片檔案' });
     }
 
-    // 上傳到 Cloudinary
     const timestamp = Math.floor(Date.now() / 1000);
     const folder = 'dreampool_users';
-    const params = { folder, timestamp };
-    const signature = generateSignature(params, CLOUDINARY_API_SECRET);
+
+    // ✅ 正確的 Cloudinary 簽名方式
+    // 參數必須按照字母順序排列，且只包含會送出的參數
+    const signStr = `folder=${folder}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`;
+    const signature = crypto.createHash('sha1').update(signStr).digest('hex');
+
+    console.log('簽名字串:', `folder=${folder}&timestamp=${timestamp}[SECRET]`);
+    console.log('簽名結果:', signature);
 
     const FormData = (await import('form-data')).default;
     const formData = new FormData();
@@ -88,7 +87,7 @@ export default async function handler(req, res) {
       contentType: photoFile.contentType || 'image/jpeg'
     });
     formData.append('api_key', CLOUDINARY_API_KEY);
-    formData.append('timestamp', timestamp.toString());
+    formData.append('timestamp', String(timestamp));
     formData.append('folder', folder);
     formData.append('signature', signature);
 
@@ -97,7 +96,7 @@ export default async function handler(req, res) {
       { method: 'POST', headers: formData.getHeaders(), body: formData }
     );
     const uploadData = await uploadRes.json();
-    console.log('Cloudinary 上傳結果:', JSON.stringify(uploadData));
+    console.log('Cloudinary 結果:', JSON.stringify(uploadData));
 
     if (uploadData.error) {
       return res.status(500).json({ success: false, error: `Cloudinary 錯誤: ${uploadData.error.message}` });
