@@ -1,10 +1,10 @@
 import fetch from 'node-fetch';
 
-const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID;           // Login channel 的 ID
-const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;   // Login channel 的 secret
-const BASE_URL = process.env.VERCEL_URL 
-  ? `https://${process.env.VERCEL_URL}` 
-  : 'https://dreampool-v4.vercel.app';
+// LINE Login 頻道（新建的）
+const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID;       // 2010158403
+const LINE_LOGIN_CHANNEL_SECRET = process.env.LINE_LOGIN_CHANNEL_SECRET; // 637b8ef7df8a2cb780a811fc7e006e9d
+
+const REDIRECT_URI = 'https://dreampool-v4.vercel.app/api/line-login';
 
 export const config = { api: { bodyParser: true } };
 
@@ -12,61 +12,72 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { action, code, state } = req.method === 'GET' 
-    ? req.query 
-    : req.body;
+  // ── GET：LINE 登入完後的 callback（帶著 code 回來）──
+  if (req.method === 'GET') {
+    const { code, state, error } = req.query;
 
-  // ── 步驟一：產生 LINE 登入網址，前端跳轉用 ──
-  if (action === 'get_url' || !action) {
-    if (!LINE_CHANNEL_ID) {
-      return res.status(500).json({ success: false, error: 'LINE_CHANNEL_ID 未設定' });
+    // 使用者拒絕授權
+    if (error) {
+      return res.redirect('/?line_error=denied');
     }
-    const redirectUri = encodeURIComponent(`${BASE_URL}/api/line-login`);
-    const state = Math.random().toString(36).substring(2, 10);
-    const loginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${LINE_CHANNEL_ID}&redirect_uri=${redirectUri}&state=${state}&scope=profile`;
-    
-    return res.status(200).json({ success: true, loginUrl });
-  }
 
-  // ── 步驟二：LINE 登入後的 callback，用 code 換 token 再換 profile ──
-  if (code) {
+    // 產生登入網址（前端呼叫）
+    if (!code) {
+      const state = Math.random().toString(36).substring(2, 10);
+      const loginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${LINE_LOGIN_CHANNEL_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${state}&scope=profile`;
+      return res.status(200).json({ success: true, loginUrl });
+    }
+
+    // 用 code 換 access token
     try {
-      const redirectUri = `${BASE_URL}/api/line-login`;
-      
-      // 用 code 換 access token
       const tokenRes = await fetch('https://api.line.me/oauth2/v2.1/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
           grant_type: 'authorization_code',
           code,
-          redirect_uri: redirectUri,
-          client_id: LINE_CHANNEL_ID,
-          client_secret: LINE_CHANNEL_SECRET
+          redirect_uri: REDIRECT_URI,
+          client_id: LINE_LOGIN_CHANNEL_ID,
+          client_secret: LINE_LOGIN_CHANNEL_SECRET
         })
       });
       const tokenData = await tokenRes.json();
-      
+      console.log('token 回應:', JSON.stringify(tokenData));
+
       if (!tokenData.access_token) {
-        return res.redirect(`/?line_error=token_failed`);
+        return res.redirect('/?line_error=token_failed');
       }
 
-      // 用 access token 取得用戶 profile
+      // 用 token 取得用戶 profile
       const profileRes = await fetch('https://api.line.me/v2/profile', {
         headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
       });
       const profile = await profileRes.json();
+      console.log('profile:', JSON.stringify(profile));
 
-      // 把 userId 和 displayName 帶回前端（用 URL query）
-      return res.redirect(
-        `/?line_user_id=${profile.userId}&line_display_name=${encodeURIComponent(profile.displayName)}&line_picture=${encodeURIComponent(profile.pictureUrl || '')}`
-      );
+      // 帶著用戶資料跳回首頁
+      const params = new URLSearchParams({
+        line_user_id: profile.userId,
+        line_display_name: profile.displayName || '',
+        line_picture: profile.pictureUrl || ''
+      });
+      return res.redirect(`/?${params.toString()}`);
 
     } catch (err) {
-      console.error('LINE login callback 錯誤:', err);
-      return res.redirect(`/?line_error=callback_failed`);
+      console.error('LINE login 錯誤:', err.message);
+      return res.redirect('/?line_error=callback_failed');
     }
   }
 
-  return res.status(400).json({ success: false, error: '未知的 action' });
+  // ── POST：前端請求登入網址 ──
+  if (req.method === 'POST') {
+    if (!LINE_LOGIN_CHANNEL_ID) {
+      return res.status(500).json({ success: false, error: 'LINE_LOGIN_CHANNEL_ID 未設定' });
+    }
+    const state = Math.random().toString(36).substring(2, 10);
+    const loginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${LINE_LOGIN_CHANNEL_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${state}&scope=profile`;
+    return res.status(200).json({ success: true, loginUrl });
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
 }
